@@ -13,4 +13,4 @@ create index if not exists sensor_data_created_at_desc_idx
 
 alter table public.sensor_data enable row level security;
 
--- Requests are made by PHP with a server-side key; never put that key in browser code.
+-- Requests are made by Next.js Route Handlers with a server-side key; never put that key in browser code.
