@@ -1,6 +1,8 @@
 import type { AnalysisParameter, SensorReading, SpoilageAnalysis } from "@/lib/ai/spoilage-analysis";
+import { estimateTapeMaturity } from "@/lib/ai/tape-maturity";
 
 export type PageState = "loading" | "ready" | "empty" | "error";
+export type PredictionMode = "spoilage" | "tape";
 export type SavedAnalysis = SpoilageAnalysis & { id: number | null };
 
 export type HistoryEntry = {
@@ -24,33 +26,93 @@ export function formatTimestamp(value: string) {
   return new Date(value).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
 }
 
-export function AIOverview() {
+export function AIOverview({ mode }: { mode: PredictionMode }) {
+  const isTapeMode = mode === "tape";
+
   return (
     <section className="ai-overview" aria-labelledby="ai-overview-title">
       <div className="ai-overview-copy">
         <span className="ai-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="m16 3 2.8 9.2L28 15l-9.2 2.8L16 27l-2.8-9.2L4 15l9.2-2.8L16 3Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"/><path d="m25 21 .9 3.1L29 25l-3.1.9L25 29l-.9-3.1L21 25l3.1-.9L25 21Z" fill="currentColor"/></svg></span>
         <div>
           <p className="eyebrow">FOODGUARD INTELLIGENCE</p>
-          <h2 id="ai-overview-title">Rule-based sensor analysis</h2>
-          <p>Configured thresholds highlight readings that may need attention. This is not a machine-learning model and cannot determine food safety on its own.</p>
+          <h2 id="ai-overview-title">{isTapeMode ? "Tape fermentation estimate" : "Rule-based sensor analysis"}</h2>
+          <p>{isTapeMode ? "A configurable time range adjusted by the latest temperature reading. This is a heuristic, not a trained AI model or a food-safety determination." : "Configured thresholds highlight readings that may need attention. This is not a machine-learning model and cannot determine food safety on its own."}</p>
         </div>
       </div>
-      <div className="ai-model-status"><span className="ai-status-dot" /><span><small>AI model</small><strong>Not Configured</strong></span></div>
-      <div className="ai-overview-foot"><span>Analyzes temperature, humidity, MQ value, and moisture</span><span className="analysis-method">RULE-BASED</span></div>
+      <div className="ai-model-status"><span className="ai-status-dot" /><span><small>Prediction method</small><strong>Rule-based</strong></span></div>
+      <div className="ai-overview-foot"><span>{isTapeMode ? "Temperature adjusts the estimate; other sensor channels are shown as context until calibrated" : "Analyzes temperature, humidity, MQ value, and moisture"}</span><span className="analysis-method">RULE-BASED</span></div>
     </section>
   );
 }
 
-export function PredictionModeSelector({ onTapeSelected }: { onTapeSelected: () => void }) {
+export function PredictionModeSelector({ mode, onChange }: { mode: PredictionMode; onChange: (mode: PredictionMode) => void }) {
   return (
     <section className="ai-section" aria-labelledby="prediction-mode-heading">
       <div className="ai-section-heading"><div><p className="eyebrow">ANALYSIS SETUP</p><h2 id="prediction-mode-heading">Prediction Mode</h2></div></div>
       <div className="prediction-modes">
-        <div className="prediction-mode is-active" aria-current="true"><span className="mode-radio" /><span className="mode-copy"><strong>Food Spoilage Analysis</strong><small>Threshold-based review of the latest sensor data</small></span><span className="mode-available">Available</span></div>
-        <button className="prediction-mode is-disabled" type="button" onClick={onTapeSelected} aria-label="Tape Fermentation Prediction, coming soon">
-          <span className="mode-radio" /><span className="mode-copy"><strong>Tape Fermentation Prediction</strong><small>Fermentation progress and readiness model</small></span><span className="coming-soon-pill">Coming Soon</span>
+        <button className={`prediction-mode ${mode === "spoilage" ? "is-active" : ""}`} type="button" onClick={() => onChange("spoilage")} aria-pressed={mode === "spoilage"}>
+          <span className="mode-radio" /><span className="mode-copy"><strong>Food Spoilage Analysis</strong><small>Threshold-based review of the latest sensor data</small></span><span className="mode-available">Available</span>
+        </button>
+        <button className={`prediction-mode ${mode === "tape" ? "is-active" : ""}`} type="button" onClick={() => onChange("tape")} aria-pressed={mode === "tape"}>
+          <span className="mode-radio" /><span className="mode-copy"><strong>Tape Fermentation Prediction</strong><small>Estimated readiness window from the recipe and live temperature</small></span><span className="mode-available">Available</span>
         </button>
       </div>
+    </section>
+  );
+}
+
+function formatDuration(hours: number) {
+  const roundedHours = Math.max(0, Math.round(hours));
+  const days = Math.floor(roundedHours / 24);
+  const remainingHours = roundedHours % 24;
+  if (days === 0) return `${remainingHours}h`;
+  return remainingHours ? `${days}d ${remainingHours}h` : `${days}d`;
+}
+
+function formatDateTime(value: string) {
+  return new Date(value).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+}
+
+export function TapeMaturityPrediction({ reading, startedAt, baselineMinHours, baselineMaxHours, onStartedAtChange, onBaselineMinChange, onBaselineMaxChange }: {
+  reading: SensorReading | null;
+  startedAt: string;
+  baselineMinHours: number;
+  baselineMaxHours: number;
+  onStartedAtChange: (value: string) => void;
+  onBaselineMinChange: (value: string) => void;
+  onBaselineMaxChange: (value: string) => void;
+}) {
+  const estimate = reading && startedAt
+    ? estimateTapeMaturity(reading, new Date(startedAt), baselineMinHours, baselineMaxHours)
+    : null;
+
+  return (
+    <section className="ai-panel tape-prediction-panel" aria-labelledby="tape-prediction-heading">
+      <div className="ai-section-heading"><div><p className="eyebrow">TAPE FERMENTATION</p><h2 id="tape-prediction-heading">Estimated maturity window</h2></div><span className="analysis-method">HEURISTIC</span></div>
+      <p className="panel-description">Set the batch start and the time range from your recipe. The latest temperature adjusts that range; sensor readings cannot confirm that tape is ready or safe.</p>
+      <div className="tape-settings">
+        <label className="tape-setting-field"><span>Fermentation started</span><input type="datetime-local" value={startedAt} onChange={(event) => onStartedAtChange(event.target.value)} /></label>
+        <label className="tape-setting-field"><span>Recipe minimum (hours)</span><input type="number" min="12" max="239" step="1" value={baselineMinHours} onChange={(event) => onBaselineMinChange(event.target.value)} /></label>
+        <label className="tape-setting-field"><span>Recipe maximum (hours)</span><input type="number" min="13" max="240" step="1" value={baselineMaxHours} onChange={(event) => onBaselineMaxChange(event.target.value)} /></label>
+      </div>
+      {!reading && <div className="tape-estimate-message" role="status">Waiting for a sensor reading. Refresh sensor data to calculate an estimate.</div>}
+      {reading && !startedAt && <div className="tape-estimate-message" role="status">Enter when this batch started to see its estimated readiness window.</div>}
+      {estimate?.status === "invalid" && <div className="tape-estimate-message is-warning" role="alert">{estimate.message}</div>}
+      {estimate?.status === "temperature_out_of_range" && <div className="tape-estimate-message is-warning" role="alert">{estimate.message} Current reading: {formatReading(reading!.temperature)} °C. No time estimate is shown outside this range.</div>}
+      {estimate && (estimate.status === "in_progress" || estimate.status === "window_passed") && <>
+        <div className={`tape-estimate-banner ${estimate.status === "window_passed" ? "is-passed" : ""}`}>
+          <span className="assessment-kicker">{estimate.status === "window_passed" ? "ESTIMATED WINDOW HAS PASSED" : "ESTIMATED TIME REMAINING"}</span>
+          <strong>{estimate.status === "window_passed" ? "Ready for a direct product check" : `${formatDuration(estimate.remainingMinHours)}–${formatDuration(estimate.remainingMaxHours)}`}</strong>
+          <span>Estimated window: {formatDateTime(estimate.readinessFrom)} – {formatDateTime(estimate.readinessUntil)}</span>
+        </div>
+        <div className="tape-result-grid">
+          <div><span>Elapsed</span><strong>{formatDuration(estimate.elapsedHours)}</strong></div>
+          <div><span>Latest temperature used</span><strong>{formatReading(reading!.temperature)} °C</strong></div>
+          <div><span>Humidity context</span><strong>{formatReading(reading!.humidity)}%</strong></div>
+          <div><span>MQ / moisture context</span><strong>{formatReading(reading!.mq_value, 0)} / {formatReading(reading!.moisture, 0)}</strong></div>
+        </div>
+        <p className="tape-method-note">Estimate uses a Q10-style temperature adjustment around 28°C and your recipe range. Humidity, MQ, and moisture are displayed but not used in the formula because their relationship and calibration for this tape setup are unknown.</p>
+      </>}
     </section>
   );
 }
@@ -125,15 +187,5 @@ export function PredictionHistory({ state, entries, error }: { state: PageState;
       {(state === "ready" || state === "empty") && entries.length === 0 && <div className="history-empty"><span className="history-empty-mark" aria-hidden="true">↗</span><strong>No analysis history yet</strong><p>Run a Food Spoilage Analysis to save the first result.</p></div>}
       {state === "ready" && entries.length > 0 && <div className="history-table-wrap"><table className="history-table"><thead><tr><th>Analyzed</th><th>Type</th><th>Assessment</th><th>Sensor summary</th></tr></thead><tbody>{entries.map((entry) => <tr key={entry.id}><td>{formatTimestamp(entry.analyzed_at)}</td><td>Food spoilage</td><td><span className={`history-assessment ${entry.assessment_key}`}>{entry.assessment_key === "potential_risk" ? "Potential Risk" : entry.assessment_key === "needs_observation" ? "Needs Observation" : "Within Threshold"}</span></td><td>{entry.sensor_snapshot.temperature}°C · {entry.sensor_snapshot.humidity}% · MQ {entry.sensor_snapshot.mq_value} · {entry.sensor_snapshot.moisture}</td></tr>)}</tbody></table></div>}
     </section>
-  );
-}
-
-export function TapeAIComingSoon() {
-  return (
-    <aside className="tape-ai-card">
-      <span className="tape-ai-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3.5c1.2 3.6-2.5 4.1-1.6 7.1.5 1.5 1.9 1.7 2.6.5.5-.8.5-1.7.2-2.6 2.7 2 4.3 4.1 4.3 6.6a5.5 5.5 0 0 1-11 0c0-2.5 1.4-4.4 3.5-6.8-.3 2.2.1 3 1.1 3.3C9.2 8.8 14 7.7 12 3.5Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/></svg></span>
-      <div className="tape-ai-copy"><p className="eyebrow">NEXT MODEL</p><h2>Tape Fermentation AI</h2><p>An upcoming AI feature designed to estimate tape fermentation progress and predict when tape is ready to serve.</p></div>
-      <span className="coming-soon-pill">Coming Soon</span>
-    </aside>
   );
 }

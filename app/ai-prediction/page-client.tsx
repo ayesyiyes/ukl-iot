@@ -9,9 +9,10 @@ import {
   PredictionHistory,
   PredictionModeSelector,
   SensorDataOverview,
-  TapeAIComingSoon,
+  TapeMaturityPrediction,
   type HistoryEntry,
   type PageState,
+  type PredictionMode,
   type SavedAnalysis,
 } from "./sections";
 
@@ -41,7 +42,10 @@ export default function AIPredictionPage() {
   const [historyMessage, setHistoryMessage] = useState("");
   const [analysisError, setAnalysisError] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
-  const [tapeMessage, setTapeMessage] = useState(false);
+  const [mode, setMode] = useState<PredictionMode>("spoilage");
+  const [tapeStartedAt, setTapeStartedAt] = useState("");
+  const [baselineMinHours, setBaselineMinHours] = useState("48");
+  const [baselineMaxHours, setBaselineMaxHours] = useState("72");
 
   const loadLatest = useCallback(async () => {
     setSensorState("loading");
@@ -102,15 +106,21 @@ export default function AIPredictionPage() {
       <FoodGuardHeader meta={<div className="topbar-meta"><span className="connection-badge ai-header-badge"><span className="ai-status-dot" />Rule-based analysis</span></div>} />
       <main className="ai-main">
         <section className="ai-page-heading"><div><p className="eyebrow">FOODGUARD INTELLIGENCE</p><h1>AI Prediction</h1><p>Intelligent insights for food monitoring and fermentation.</p></div><span className="method-label"><span className="method-label-dot" />Rules active · AI model not configured</span></section>
-        <AIOverview />
-        <PredictionModeSelector onTapeSelected={() => setTapeMessage(true)} />
-        {tapeMessage && <p className="tape-selection-note" role="status">Tape Fermentation Prediction is coming soon and is not available yet.</p>}
+        <AIOverview mode={mode} />
+        <PredictionModeSelector mode={mode} onChange={setMode} />
         <SensorDataOverview state={sensorState} reading={reading} error={sensorError} onRefresh={() => void loadLatest()} />
-        <div className="ai-content-grid">
+        {mode === "tape" ? <TapeMaturityPrediction
+          reading={reading}
+          startedAt={tapeStartedAt}
+          baselineMinHours={Number(baselineMinHours)}
+          baselineMaxHours={Number(baselineMaxHours)}
+          onStartedAtChange={setTapeStartedAt}
+          onBaselineMinChange={setBaselineMinHours}
+          onBaselineMaxChange={setBaselineMaxHours}
+        /> : <div className="ai-content-grid">
           <AIAnalysisCard result={result} busy={analyzing} error={analysisError} historyMessage={historyMessage} onRun={() => void runAnalysis()} canRun={canRun} />
           <PredictionHistory state={historyState} entries={history} error={historyError} />
-        </div>
-        <TapeAIComingSoon />
+        </div>}
       </main>
       <footer className="page-footer"><span>FoodGuard <span aria-hidden="true">·</span> AI Prediction</span><span>Rule-based analysis is informational and is not a food-safety determination.</span></footer>
     </div>

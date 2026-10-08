@@ -49,7 +49,7 @@ The legacy path `/api/sensor.php` is rewritten to `/api/sensor` for existing ESP
 - `POST /api/ai-analysis` reads the newest real sensor row, applies configured rules, and saves the result when the history migration is installed.
 - `GET /api/ai-analysis` returns the latest 20 saved rule-based analyses.
 
-Open `/ai-prediction` for the separate analysis module. It is explicitly rule-based; no machine-learning model or tape-readiness prediction is available. Shared starter thresholds are in `lib/ai/spoilage-analysis.ts`. Sensor thresholds alone cannot establish food safety or spoilage.
+Open `/ai-prediction` for the analysis module. Tape Fermentation Prediction provides a configurable recipe time range adjusted by the latest temperature reading; it is a heuristic, not a trained machine-learning model. Humidity, MQ, and moisture readings are shown as context but are not used in the estimate until their relationship and calibration for the tape setup are known. Sensor readings cannot confirm fermentation readiness or food safety. Shared food-spoilage starter thresholds are in `lib/ai/spoilage-analysis.ts`.
 
 Temperature, humidity, and non-negative value checks are performed by the ingest endpoint. MQ thresholds are raw-value thresholds, not ppm. Moisture is stored and displayed as sent by the ESP; no unit or scale is assumed. Starter thresholds should be calibrated for the food and sensor arrangement.
 
