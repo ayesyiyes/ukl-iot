@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { FoodGuardHeader } from "./foodguard-header";
+import { SENSOR_THRESHOLDS } from "@/lib/ai/spoilage-analysis";
 import {
   Chart as ChartJS,
   Filler,
@@ -47,13 +48,6 @@ const sensors: Sensor[] = [
   { key: "moisture", label: "Moisture", unit: "as sent", decimals: 0, color: "#299b81" },
 ];
 
-const thresholds = {
-  temperature: { warning: 30, danger: 35 },
-  humidity: { warning: 75, danger: 85 },
-  mq_value: { warning: 400, danger: 700 },
-  moisture: { warning: 80, danger: 90 },
-};
-
 const ranges = ["1h", "6h", "24h"] as const;
 type Range = (typeof ranges)[number];
 
@@ -64,8 +58,8 @@ function formatValue(value: number, decimals = 1) {
 }
 
 function severity(key: Sensor["key"], value: number) {
-  if (value >= thresholds[key].danger) return "danger";
-  if (value >= thresholds[key].warning) return "warning";
+  if (value >= SENSOR_THRESHOLDS[key].danger) return "danger";
+  if (value >= SENSOR_THRESHOLDS[key].warning) return "warning";
   return "normal";
 }
 
@@ -78,10 +72,6 @@ async function fetchJson<T>(url: string): Promise<ApiResponse<T>> {
   const body = (await response.json()) as ApiResponse<T>;
   if (!response.ok || !body.success) throw Object.assign(new Error(body.message || "Request failed"), { body });
   return body;
-}
-
-function BrandMark() {
-  return <span className="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M16 27c-6.1 0-10.5-4.1-10.5-10.2C5.5 10.5 10 5.4 18.8 5c.5 8.2-1.6 12-6.5 12.9 2.3.2 4.5-.5 6.5-2.4 1.1-1 2-2.3 2.8-3.9C24.5 22 21.4 27 16 27Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/><path d="M10 24c1.1-3.1 3.4-5.7 6.8-7.8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg></span>;
 }
 
 function SensorIcon({ type }: { type: Sensor["key"] }) {
@@ -161,10 +151,7 @@ export default function Dashboard() {
 
   return (
     <div className="page-shell">
-      <header className="topbar">
-        <Link className="brand" href="/" aria-label="FoodGuard dashboard"><BrandMark /><span className="brand-copy"><strong>FoodGuard</strong><small>Food Spoilage Detection System</small></span></Link>
-        <div className="topbar-meta"><span className={`connection-badge is-${online ? "online" : "offline"}`}><span className="status-dot" />{online ? "Device Online" : "Device Offline"}</span><span className="topbar-divider" aria-hidden="true" /><div className="last-update"><span>Last update</span><strong>{reading ? time(reading.created_at) : "Waiting for data"}</strong></div></div>
-      </header>
+      <FoodGuardHeader meta={<div className="topbar-meta"><span className={`connection-badge is-${online ? "online" : "offline"}`}><span className="status-dot" />{online ? "Device Online" : "Device Offline"}</span><span className="topbar-divider" aria-hidden="true" /><div className="last-update"><span>Last update</span><strong>{reading ? time(reading.created_at) : "Waiting for data"}</strong></div></div>} />
       <main>
         <section className="overview-heading"><div><p className="eyebrow">LIVE MONITORING</p><h1>Food condition</h1></div><span className="refresh-note"><span className="pulse-dot" />Auto refresh · 10 sec</span></section>
         <section className={`condition-panel status-${overall}`} aria-live="polite">

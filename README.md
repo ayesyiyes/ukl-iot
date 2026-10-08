@@ -20,6 +20,8 @@ Copy `.env.example` to `.env.local` and set:
 
 The existing database is left intact. If the table has not been created yet, run the existing [`database.sql`](database.sql) in the Supabase SQL Editor; it uses `create table if not exists` and does not drop existing data.
 
+For saved AI analysis history, separately run [`database.ai-prediction.sql`](database.ai-prediction.sql). This additive migration creates `prediction_history` and does not change `sensor_data`. Without it, rule-based analysis can still run, but history cannot be saved or loaded.
+
 ## Run locally
 
 ```bash
@@ -44,7 +46,11 @@ The legacy path `/api/sensor.php` is rewritten to `/api/sensor` for existing ESP
 - `POST /api/sensor` validates all four numeric readings and inserts them into `sensor_data`. JSON and form-encoded posts are accepted.
 - `GET /api/latest` returns the newest reading or `data: null` when there is none.
 - `GET /api/history?range=1h|6h|24h` returns up to 1000 timestamped rows for charts.
+- `POST /api/ai-analysis` reads the newest real sensor row, applies configured rules, and saves the result when the history migration is installed.
+- `GET /api/ai-analysis` returns the latest 20 saved rule-based analyses.
 
-Temperature, humidity, and non-negative value checks are performed by the ingest endpoint. MQ thresholds are raw-value thresholds, not ppm. Moisture is stored and displayed as sent by the ESP; no unit or scale is assumed. Starter alert thresholds are in `app/ui/dashboard.tsx` and should be calibrated for the food and sensor arrangement.
+Open `/ai-prediction` for the separate analysis module. It is explicitly rule-based; no machine-learning model or tape-readiness prediction is available. Shared starter thresholds are in `lib/ai/spoilage-analysis.ts`. Sensor thresholds alone cannot establish food safety or spoilage.
 
-The dashboard polls every 10 seconds. Device status is Online when the latest reading is no older than 30 seconds. Until the first row exists, the dashboard shows `NO DATA` rather than inferring a safe condition. Chart.js and the selected fonts load from public CDNs, so those visual dependencies need internet access. Dashboard thresholds are starter values, not food-safety certification.
+Temperature, humidity, and non-negative value checks are performed by the ingest endpoint. MQ thresholds are raw-value thresholds, not ppm. Moisture is stored and displayed as sent by the ESP; no unit or scale is assumed. Starter thresholds should be calibrated for the food and sensor arrangement.
+
+The dashboard polls every 10 seconds. Device status is Online when the latest reading is no older than 30 seconds. Until the first row exists, the dashboard shows `NO DATA` rather than inferring a safe condition. Chart.js and the selected fonts load from public CDNs, so those visual dependencies need internet access. Dashboard and analysis thresholds are starter values, not food-safety certification.
